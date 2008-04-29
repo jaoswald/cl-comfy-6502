@@ -1,0 +1,17 @@
+TO DO for COMFY-6502
+
+$Revision: 1.1 $ $Date: 2008/03/04 04:18:42 $
+
+- Provide user-interface; compile-code in comfy-tests.lisp is usable
+  for testing and development, but a real backend is needed.
+- Provide a coherent approach to symbolic arguments. I suspect what
+  I have now is about 1/2 sane mixed with 1/2 plain old broken
+- Documentation
+- Go back and implement JMP elimination and loop-ending optimizations
+  Based on my abortive first attempt, I suspect this requires a 
+  new class combining both an opcode and an argument; this makes notions
+  such as "next instruction" much easier to manage.
+- Probably there are similar optimizations available in WHILE
+- Fix conditions with subclasses where the :problem string changes.
+- Clean out scraps of Baker's macros and examples
+
