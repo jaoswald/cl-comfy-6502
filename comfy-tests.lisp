@@ -17,18 +17,22 @@
 (defun simple-gen ()
   (init)
   (comfy-6502::gen 1)
-  (comfy-6502::getest simple-gen-1 (init) 0)
+  (comfy-6502::gen 2)
+  comfy-6502::*mem*)
+
+(deftest simple-gen-1 (init) 0)
 (deftest simple-gen-2 (progn (init) (comfy-6502::gen 1)) 1)
 (deftest simple-gen-3 (simple-gen) (2 1))
 
-(defun to-opcode (thing)
-  (cond ((eq (class-of thing) (find-class '6502:symbolic-opcode))
-	 (cons (opcode thing) 
+(defgeneric to-opcode (thing)
+  (:method ((thing t))
+    thing)
+  (:method ((thing 6502:symbolic-opcode))
+    (cons (opcode thing) 
 	       (cl:if (member (address-mode thing) 
 			      '(:IMPLIED :ACCUMULATOR :BRANCH-RELATIVE))
 		      nil
-		      (list (address-mode thing)))))
-	(t thing)))
+		      (list (address-mode thing))))))
 
 (defmacro code-result (&body forms)
   `(progn
@@ -50,6 +54,7 @@
 (deftest branch-1 (code-result (comfy-6502::genbr 0))
   ((JMP :ABSOLUTE) (:LONG-BRANCH 2)))
    ; 3                   2        1
+
 (deftest branch-1b (progn
 		     (init)
 		     (comfy-6502::genbr 0)
