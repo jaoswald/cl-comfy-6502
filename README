@@ -1,0 +1,5 @@
+This is a version of Henry Baker's COMFY compiler for the 6502 processor
+ported to Common Lisp.
+
+Home page: http://josephoswald.nfshost.com/comfy/summary.html
+Git repository: git://github.com/jaoswald/cl-comfy-6502.git
