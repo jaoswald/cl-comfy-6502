@@ -51,10 +51,10 @@ the specified numeric opcode."
 
 #||
 (build-suite "branch-suite" 
-	     "BCC-test" "BCS-test"
-	     "BEQ-test" "BNE-test"
-	     "BVS-test" "BVC-test"
-	     "BMI-test" "BPL-test")
+     "BCC-test" "BCS-test"
+     "BEQ-test" "BNE-test"
+     "BVS-test" "BVC-test"
+     "BMI-test" "BPL-test")
 ||#  
 
 (defmacro def-implied-test (instruction opcode)
@@ -120,19 +120,19 @@ the specified numeric opcode."
 
 #||
 (build-suite "implied-suite"
-	     "NOP-test" "BRK-test" 
-	     "PHP-test" "PLP-test"
-	     "PHA-test" "PLA-test"
-	     "CLC-test" "SEC-test"
-	     "CLI-test" "SEI-test"
-	     "CLD-test" "SED-test"
-	     "CLV-test" 
-	     "INX-test" "DEX-test" 
-	     "INY-test" "DEY-test"
-	     "RTS-test" "RTI-test" 
-	     "TXA-test" "TAX-test" 
-	     "TYA-test" "TAY-test"
-	     "TXS-test" "TSX-test")
+     "NOP-test" "BRK-test" 
+     "PHP-test" "PLP-test"
+     "PHA-test" "PLA-test"
+     "CLC-test" "SEC-test"
+     "CLI-test" "SEI-test"
+     "CLD-test" "SED-test"
+     "CLV-test" 
+     "INX-test" "DEX-test" 
+     "INY-test" "DEY-test"
+     "RTS-test" "RTI-test" 
+     "TXA-test" "TAX-test" 
+     "TYA-test" "TAY-test"
+     "TXS-test" "TSX-test")
 ||#
 
 ;;; opcodes with multiple valid address modes
@@ -151,7 +151,6 @@ the specified numeric opcode."
 	(sym instruction)
 	(test-counter 0))
     `(progn
-      
        ,@(mapcar (function (lambda (opcode am)
 		   `(deftest ,(make-symbol 
 			       (concatenate 'string  
@@ -165,7 +164,8 @@ the specified numeric opcode."
 			       opcode)
 			      (list
 			       `(handler-case 
-				    (opcode-to-byte (make-symbolic-opcode ',sym ,am))
+				    (opcode-to-byte (make-symbolic-opcode 
+						     ',sym ,am))
 				  (bad-address-mode () :pass)
 				  (error () :unexpected-error)
 				  (:no-error () :no-error))
@@ -194,10 +194,10 @@ the specified numeric opcode."
 
 #||
 (build-suite "accum-suite"
-	     "STA-test" "LDA-test"
-	     "ADC-test" "SBC-test"
-	     "ORA-test" "EOR-test" "AND-test" 
-	     "CMP-test")
+     "STA-test" "LDA-test"
+     "ADC-test" "SBC-test"
+     "ORA-test" "EOR-test" "AND-test" 
+     "CMP-test")
 ||#
 
 ;;                    acc imm abs abs-x abs-y zp zp-x zp-x-ind zp-y zp-ind-y abs-ind
@@ -208,8 +208,8 @@ the specified numeric opcode."
 
 #||
 (build-suite "rotate-suite"
-	     "ASL-test" "LSR-test"
-	     "ROL-test" "ROR-test")
+     "ASL-test" "LSR-test"
+     "ROL-test" "ROR-test")
 ||#
 
 ;;                    acc imm abs abs-x abs-y zp zp-x zp-x-ind zp-y zp-ind-y abs-ind
@@ -220,9 +220,9 @@ the specified numeric opcode."
 
 #||
 (build-suite "inc/dec/bit-suite"
-	     "INC-test"
-	     "DEC-test"
-	     "BIT-test")
+     "INC-test"
+     "DEC-test"
+     "BIT-test")
 ||#
 
 ;;                    acc imm abs abs-x abs-y zp zp-x zp-x-ind zp-y zp-ind-y abs-ind
@@ -231,8 +231,8 @@ the specified numeric opcode."
 
 #||
 (build-suite "jump-suite"
-	     "JSR-test"
-	     "JMP-test")
+     "JSR-test"
+     "JMP-test")
 ||#
 
 ;;                    acc imm abs abs-x abs-y zp zp-x zp-x-ind zp-y zp-ind-y abs-ind
@@ -246,19 +246,19 @@ the specified numeric opcode."
 
 #||
 (build-suite "index-suite"
-	     "LDX-test" "LDY-test"
-	     "STX-test" "STY-test"
-	     "CPX-test" "CPY-test")
+     "LDX-test" "LDY-test"
+     "STX-test" "STY-test"
+     "CPX-test" "CPY-test")
 ||#
 
 #||
-;; used by suites, unless the suite is built again. ;
+;; used by suites, unless the suite is built again.
 
-;; suite-of-suites, requires modifications to elk-test.el ;
+;; suite-of-suites, requires modifications to elk-test.el
 
 (build-suite "6502-opcode-suite" 
-	     "branch-suite" "implied-suite" "accum-suite" "rotate-suite"
-	     "inc/dec/bit-suite" "jump-suite" "index-suite")
+     "branch-suite" "implied-suite" "accum-suite" "rotate-suite"
+     "inc/dec/bit-suite" "jump-suite" "index-suite")
 
 ||#
 
