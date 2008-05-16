@@ -35,6 +35,7 @@
   (:use "6502" "CL")
   (:shadow "COMPILE" "CONSTANTP" "VARIABLEP" "BREAK"
 	   "IF" "+" "-" "1+" "1-" "NOT" "LOOP" ;; "PROG"
+	   "FOR"
 	   ;; "WHEN" "UNLESS" ; candidates for control macros
 	   )
   (:export "COMPILE" "INIT" "*MEM*" "RELOCATE"
@@ -1066,7 +1067,7 @@ it with a conditional backward branch.
 
 (define-cmacro for
   ((for ?v ?from ?to . ?body)
-   `(seq ,(append '(l) from) ,(append '(st) ?v)
+   `(seq ,(append '(l) ?from) ,(append '(st) ?v)
      (while (seq ,(append '(c) ?to) llt)
        (seq ,(append '(seq) ?body)
 	    ,(append '(1+) ?v)
