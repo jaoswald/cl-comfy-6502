@@ -880,81 +880,181 @@ it with a conditional backward branch.
 (defun match-predicate (x)
   (and (consp x) (eq (car x) :in)))
 
-(defun match-or-fail (p e f alist)
-  ;;; f is a function which is executed if the match fails.
-  ;;; f had better not return.
-  ;;; JAO: otherwise, returns an ALIST mapping variable names to 
-  ;;;      what they matched
+;;; somewhat better version...
+;;; puts together closures to make a match function,
+;;; checks repeated variables for identical bindings at each occurence, 
+;;; but somewhat crudely depends on function calls for every car/cdr/atom.
+;;;
+;;; would be somewhat cleaner to use macros to write the function without
+;;; as many funcalls (i.e. change funcalls of closures to nested lets)
+;;;
+;;; this was pretty hard to debug because of all the opaque closures being created;
+;;; macroexpansions would have been easier. The nesting of lambdas returning multiple
+;;; values within (values ...) gets hard to read, as does the switching between
+;;; run-time-bindings found at pattern-parse-time, and the bindings produced at run-time
+;;; in the closures.
+;;;
+;;; create-match-function PATTERN VARS-BOUND
+;;; given a pattern, and variables expected to be bound outside the pattern,
+;;; returns two values:
+;;;   first, a function taking an EXPRESSION and VAR-BINDINGS returning
+;;;             two values: a boolean, indicating whether the match succeeded, 
+;;;                         and a list of variable-bindings 
+;;;                         (including the ones already established)
+;;;   and second, a list of variables newly bound, NOT including the ones to be
+;;;               in VARS-BOUND
+;;;
+;;; VARS-BOUND should simply be a list of the "match variable" names
+;;;
+
+(defun bound-value (var bindings)
+  (let ((pair (assoc var bindings)))
+    (cl:if pair
+	   (cdr pair)
+	   (error "No binding for variable ~A in bindings ~A." var bindings))))
+
+(defun create-match-function (pattern vars-bound)
+  (cond 
+    ((null pattern)
+     (values (lambda (expr bindings) (values (null expr) bindings))
+	     nil))
+
+    ((match-variable-p pattern) 
+     (let ((var pattern))
+       (cl:if (member var vars-bound)
+	      ;; if a variable is already bound, the variable must match
+	      (values 
+	       (lambda (expr bindings)
+		 (values (eql expr (bound-value var bindings))
+			 bindings))
+	       nil)
+	      ;; otherwise, matches anything, creating a new binding
+	      (values
+	       (lambda (expr bindings)
+		 (values t (cons (cons var expr) bindings)))
+	       (list var)))))
+    
+    ((atom pattern)
+     ;; atoms match themselves, or fail; this also would cover NIL
+     (values
+      (lambda (expr bindings)
+	;;(format t "matching atom ~A to expr ~A with bindings ~A~%"
+	;;	  pattern expr bindings)
+	(values (eql pattern expr) bindings))
+      nil))
+    
+    ((eq (car pattern) 'quote) 
+     ;; quoted elements in the pattern must be EQ to the expression
+     (values
+      (lambda (expr bindings)
+	(values (eq (cadr pattern) expr) bindings))
+      nil))
+    
+    ((match-predicate pattern)
+     (let ((predicate (cadr pattern))
+	   (var (caddr pattern)))
+       (cl:if (endp (cddr pattern)) ; no binding
+	      (values
+	       (lambda (expr bindings)
+		 (values (funcall predicate expr) bindings))
+	       nil)
+	      (cl:if (member var vars-bound)
+		     (values 
+		      ;; strange case: predicate check against already-bound
+		      ;; value...perhaps should error here.
+		      (lambda (expr bindings)
+			;;(format t "Checking match of var ~A to expression ~A with bindings ~A~%"
+			;;	  var expr bindings)
+			(values (and (funcall predicate expr)
+				     (eq expr (bound-value var bindings)))
+				bindings))
+		      nil)
+		     (values
+		      (lambda (expr bindings)
+			;;(format t "Matching var ~A to expression ~A with previous bindings ~A~%"
+			;;        var expr bindings)
+			(values (funcall predicate expr) 
+				(cons (cons var expr) bindings)))
+		      (list var))))))
+    
+    ;;; pattern is a CONS: match recursively
+    (t 
+     (multiple-value-bind (car-func car-bindings)
+	 (create-match-function (car pattern) vars-bound)
+       (multiple-value-bind (cdr-func cdr-bindings)
+	   (create-match-function (cdr pattern) 
+				  (append car-bindings vars-bound))
+	 ;;(format t "pattern: ~A~%vars-bound: ~A~%car-bindings: ~A~%cdr-bindings: ~A~%"
+	 ;;        pattern vars-bound car-bindings cdr-bindings)
+	 (values
+	  (lambda (expr bindings)
+	    ;;(format t "matching ~A to expression ~A with bindings ~A~%"
+	    ;;        pattern expr bindings)
+	    (cl:if (consp expr) 
+		   (multiple-value-bind (car-match car-bound)
+		       (funcall car-func (car expr) bindings)
+		     ;;(format t "result car-bound ~A " car-bound)
+		     (multiple-value-bind (cdr-match cdr-bound)
+			 (funcall cdr-func (cdr expr) car-bound)
+		       ;;(format t "pattern: ~A result car-bound: ~A cdr-bound: ~A~%"
+		       ;;        pattern car-bound cdr-bound)
+		       (values (and car-match cdr-match)
+			       cdr-bound)))
+
+		   ;; cons cannot match a non-cons (should it match NIL??)
+		   (values nil bindings)))
+	  (append cdr-bindings car-bindings)))))))
+
+(defun match (pattern expression)
+  (let ((match-func (create-match-function pattern nil)))
+    (funcall match-func expression nil)))
+
+(defun create-expander (pattern expansion)
+  "Returns function taking an expression, returning two values:
+First, the expansion (i.e. a function body, returning a single form) of the expression, 
+or NIL if no match 
+Second, a boolean indicating whether the match was successful."
+  (multiple-value-bind (match-function bound-vars)
+      (create-match-function pattern nil)
+    (let ((expander (cl:compile nil `(lambda ,bound-vars
+				       ,@expansion))))
+      (lambda (expression)
+	(multiple-value-bind (matched bindings)
+	    (funcall match-function expression nil)
+	  (cl:if matched
+		 (let ((actual-bound (mapcar #'car bindings)))
+		   (cl:unless (equal actual-bound bound-vars) ; I'm paranoid here...
+		     (error "Matching did not returned variables in promised order."))
+		   (values 
+		    (apply expander (mapcar #'cdr bindings))
+		    T))
+		 (values nil nil)))))))
+				       
+(defmacro define-cmacro (name &rest expansions)
+  "(define-cmacro name
+      (pattern-form-1 &body expansion-1)
+      (pattern-form-2 &body expansion-2)
+      ....)"
+  `(progn
+     (cl:when (get ',name 'cmacro)
+       (warn "Redefining cmacro ~S" ',name))
+     
+     (let ((match-functions (mapcar (lambda (pat-and-body) 
+				      (create-expander (car pat-and-body)
+						       (cdr pat-and-body)))
+				    ',expansions)))
+       (setf (get ',name 'cmacro)
+	     #'(lambda (form)
+		 (do ((expander-list match-functions (cdr expander-list)))
+		     ((null expander-list) (error "No pattern mached for form ~S" form))
+		   (multiple-value-bind (expansion matched)
+		       (funcall (car expander-list) form)
+		     (cl:when matched 
+		       (cl:return expansion))))))
+       ',name)))
   
-  (cond  
-    ;; variables match anything, and create/override an association
-    ((match-variable-p p) (cons (cons p e) alist))
-    ;; note: unlike Baker, variables are atoms, not conses, so they
-    ;; have to be checked first
-    
-    ((atom p)
-     (cond ((eq p e) alist)  ; constants match themselves
-	   (t (funcall f)))) ; or fail
-    
-    
-    ;; quoted elements in the pattern must be EQ to the expression
-    ((eq (car p) 'quote) (cond ((eq (cadr p) e) alist)
-			       (t (funcall f))))
-    
-    ;; predicates are called on the expression, return value T
-    ;; indicates match
-    ;; (:in <function>) tests against predicate <function>
-    ;; (:in <function> <var>) collects a binding of <var> to the value
-    ((match-predicate p) (cond ((funcall (cadr p) e) 
-				(cl:if (endp (cddr p))
-				       alist
-				       (cons (cons (caddr p) e) alist)))
-			       (t (funcall f))))
-    
-    ;; an atom not matched by now: failure
-    ((atom e) (funcall f))
-    
-    ;; expression is a CONS: match recursively.
-    (t (match-or-fail (car p)
-		      (car e)
-		      f
-		      (match-or-fail (cdr p)
-				     (cdr e)
-				     f
-				     alist)))))
 
-;;; JAO: following works, but is quite crude:
-;;; it compiles/conses up a function every time it is expanded.
-;;; the trick is to reliably extract the order in which the 
-;;; match will cons up the alist...
-;;; is it as simple as finding the "alist cons" in the matcher
-;;; and using it to update the "interpreter/compiler form" of the match?
-
-
-(defun apply-expander-or-fail (pattern expression expansion fail)
-  (multiple-value-bind (matched alist)
-      (match pattern expression)
-    (cl:if matched
-	(let ((expander (cons 'lambda (cons (mapcar #'car alist)
-					    expansion))))
-	  (format t "expander ~A~%" expander)
-	  ;; could also be (apply (compile nil expander) ...
-	  (apply (coerce expander 'function)
-		 (mapcar #'cdr alist)))
-	(funcall fail))))
-
-
-(defun match (p e)
-  "Returns two values: first is T if match succeeded, NIL if match failed.
-   Second is the alist of variables to their matches."
-  (let ((success nil)
-	(alist nil))
-    (catch 'match-failed 
-      (setq alist
-	    (match-or-fail p e #'(lambda () (throw 'match-failed nil)) alist)
-	    success T))
-    (values success alist)))
-
+#||
 (defmacro define-cmacro (name &rest expansions)
   "(define-cmacro name
       (pattern-form-1 &body expansion-1)
@@ -979,6 +1079,7 @@ it with a conditional backward branch.
 		 (cl:return (apply (coerce expander 'function) 
 				   (mapcar #'cdr alist)))))))))
     ',name))
+||#
 
 (defun comfy-macroexpand (form)
   (cl:if (consp form)

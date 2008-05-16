@@ -367,7 +367,7 @@
 
 (deftest match-1 
     (comfy-6502::match '(move ?x ?y) '(move foo bar))
-  T ((?x . foo) (?y . bar)))
+  T ((?y . bar) (?x . foo)))
 
 (deftest match-2 
     (comfy-6502::match '(a b ?c) '(a b foo))
@@ -375,7 +375,7 @@
 
 (deftest match-3
     (comfy-6502::match '(a b ?c) '(a b foo bar))
-  nil nil)
+  nil ((?c . foo)))
 
 (deftest match-4
     (comfy-6502::match '(a b . ?c) '(a b foo))
@@ -391,15 +391,15 @@
 
 (deftest match-7
     (comfy-6502::match '(a ?v1 ?v2) '(a b c))
-  t ((?v1 . b) (?v2 . c)))
+  t ((?v2 . c) (?v1 . b)))
 
 (deftest match-8
     (comfy-6502::match '(a (?v1 . ?v2)) '(a (b . c)))
-  t ((?v1 . b) (?v2 . c)))
+  t ((?v2 . c) (?v1 . b)))
 
 (deftest match-9 
     (comfy-6502::match '(a (?v1 . ?v2)) '(a (b c d)))
-  t ((?v1 . b) (?v2 . (c d))))
+  t ((?v2 . (c d)) (?v1 . b)))
    
 (deftest match-10
     (comfy-6502::match '(a (quote b) (:in evenp)) '(a b 6))
@@ -412,13 +412,71 @@
 
 (deftest match-12
     (comfy-6502::match '(a (quote b) (:in evenp ?c)) '(a b 7))
-  nil nil)
+  nil ((?c . 7)))
 
-;;; problematic...
+;;; problematic under previous matcher
 
 (deftest match-13
     (comfy-6502::match '(a ?v1 ?v1) '(a b c))
-  T ((?v1 . b) (?v1 . c)))
+  nil ((?v1 . b)))
+
+(deftest match-14-new
+    (comfy-6502::match '(a b ?c) '(a b))
+  NIL NIL)
+
+(deftest match-15-new
+    (comfy-6502::match '(a nil ?c) '(a))
+  nil nil)
+
+(deftest match-16-new
+    (comfy-6502::match '(a (?b)) '(a nil))
+  nil nil)
+
+;; car of NIL is nil, cdr of NIL is nil
+;; should (?b . ?c) match NIL with both variables bound to nil, or
+;; (?b) match nil with ?b bound to nil?
+;;
+;; I guess not: otherwise (nil . nil) = (NIL) is indistinguishable from NIL
+;; The principle is this: (?a . ?b) do not define "accessors" where ?a is car
+;; and ?b is cdr; they match an actual CONS: nil is not a CONS.
+;;
+;; I still get the nagging feeling that there seems to be a missing symmetry 
+;; corresponding to (car nil) = (cdr nil) = nil
+;; 
+;; the "workaround" if you want to match both is to use the pattern
+;; ?var, which matches NIL or (NIL . NIL) = (NIL), as well as all other values
+;; and inspect the resulting value to discriminate on the value that was matched.
+;; or (:in (lambda (expr) (and (null (car expr)) (null (cdr expr)))) ?x)
+;; which matches NIL and (NIL)
+;;
+
+(deftest match-17-new
+    (comfy-6502::match '(?b . ?c) 'nil)
+  NIL NIL)
+
+(deftest match-18-new
+    (comfy-6502::match '(a (?b . ?c)) '(a (nil . nil)))
+  T ((?c . nil) (?b . nil)))
+
+(deftest match-19-new
+    (comfy-6502::match '?b nil)
+  T ((?b . nil)))
+
+(deftest match-20-new
+    (comfy-6502::match '(?b . ?c) '(nil))
+  T ((?c . nil) (?b . nil)))
+
+(defun test-macro-expansion (pattern expansion-body test-form)
+  (let ((macro-expander (comfy-6502::create-expander pattern expansion-body)))
+    (funcall macro-expander test-form)))
+
+(deftest expand-1
+    (test-macro-expansion '(mac1 ?x ?y) '((list ?y ?x)) '(mac1 a b))
+  (b a) T)
+
+(deftest expand-2
+    (test-macro-expansion '(mac1 ?x ?y) '((list ?y ?x)) '(mac1 (a c d) b))
+  (b (a c d)) T)
 
 (deftest move-macro-1
     (comfy-macroexpand '(move (x) (y)))
