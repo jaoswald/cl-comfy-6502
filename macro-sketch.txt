@@ -1,0 +1,52 @@
+pattern: ?x  (not bound outside), we know returns match, binding for ?x
+matcher: 
+  (lambda (form)
+     (values t (list form))
+
+pattern: nil
+  (lambda (form bindings)
+      (values (null form) bindings))
+
+pattern: (?x) (not bound outside)
+  (lambda (form bindings)
+     (if (consp form)
+       (let ((form-cdr (cdr form))
+             (form-car (car form)))
+	  (m-v-b (car-match ?x-value)  <-- at this point no binding for ?x
+               (values t (list form-car))
+	     (if car-match
+		values (null form-cdr) cdr-bindings) ; matcher nil form-cdr
+ 	         (values cdr-match cdr-bindings))
+           (values nil car-bindings)
+       (values nil bindings)))
+
+Lots of m-v-b: looks somewhat clunky.
+And the nasty "add-binding" which conses at match time
+
+pattern: (?x) not bound outside
+
+(lambda (form) ; returns values: match, binding for ?x
+  (if (not (consp form))
+     (values nil nil)
+     (let ((form-cdr (cdr form)) 
+           (form-car (car form)))
+        ;; we know matcher for car returns car-match, binding for x
+        (m-v-b (car-match ?x-value)
+             (values t form-car)
+	   (values (null form-cdr) (list ?x-value))))))
+     
+pattern: ?x (bound outside)
+matcher:
+  (lambda (form bindings)
+     (values (eql form (bound-value '?x bindings)) bindings))
+
+pattern: (?x ?x) (not bound outside)
+  (lambda (form bindings)
+     (if (consp form)
+       (let ((form-cdr (cdr form))
+             (form-car (car form)))
+          (m-v-b (cdr-match cdr-bi
+
+
+
+         

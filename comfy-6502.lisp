@@ -881,19 +881,9 @@ it with a conditional backward branch.
 (defun match-predicate (x)
   (and (consp x) (eq (car x) :in)))
 
-;;; somewhat better version...
-;;; puts together closures to make a match function,
-;;; checks repeated variables for identical bindings at each occurence, 
-;;; but somewhat crudely depends on function calls for every car/cdr/atom.
-;;;
-;;; would be somewhat cleaner to use macros to write the function without
-;;; as many funcalls (i.e. change funcalls of closures to nested lets)
-;;;
-;;; this was pretty hard to debug because of all the opaque closures being created;
-;;; macroexpansions would have been easier. The nesting of lambdas returning multiple
-;;; values within (values ...) gets hard to read, as does the switching between
-;;; run-time-bindings found at pattern-parse-time, and the bindings produced at run-time
-;;; in the closures.
+;;; Hopefully even better better version of matching.
+;;; Uses macros to code up explicit Lisp code to traverse the
+;;; expression, pattern matching along the way.
 ;;;
 ;;; create-match-function PATTERN VARS-BOUND
 ;;; given a pattern, and variables expected to be bound outside the pattern,
@@ -914,72 +904,91 @@ it with a conditional backward branch.
 	   (cdr pair)
 	   (error "No binding for variable ~A in bindings ~A." var bindings))))
 
-(defun create-match-function (pattern vars-bound)
-  (cond 
-    ((null pattern)
-     (values (lambda (expr bindings) (values (null expr) bindings))
-	     nil))
+(defmacro match-expression (pattern vars-bound expression-sym 
+			    &optional binding-sym)
+  "Expands to code returning a two values: 
+a boolean indicating successful match, and
+an association list of bindings created (or NIL if the match failed).
 
-    ((match-variable-p pattern) 
+  VARS-BOUND is a list of pattern variables assumed to be bound already.
+  EXPRESSION-SYM is the name of the variable containing the expression. 
+  BINDING-SYM, if non-nil, is a symbol which will refer to a variable
+containing those bindings when the match is made."
+  (if (null binding-sym)
+      (let ((binding-sym (gensym)))
+	`(let (,binding-sym)
+	   (match-expression pattern ,vars-bound ,expression-sym ,binding-sym)))
+      (cond 
+	((null pattern)
+	 `(values (null ,expression-sym) ,binding-sym))
+	((match-variable-p pattern) 
      (let ((var pattern))
        (cl:if (member var vars-bound)
 	      ;; if a variable is already bound, the variable must match
-	      (values 
-	       (lambda (expr bindings)
-		 (values (eql expr (bound-value var bindings))
-			 bindings))
-	       nil)
+	      `(values (eql ,expression-sym (bound-value ,var ,binding-sym))
+		       ,binding-sym)
 	      ;; otherwise, matches anything, creating a new binding
-	      (values
-	       (lambda (expr bindings)
-		 (values t (cons (cons var expr) bindings)))
-	       (list var)))))
-    
+	      (progn 
+		(push var vars-bound)
+		`(values t (cons (cons ,var ,expression-sym) ,binding-sym)))))
+
+;;;; NOTE: instead of association list built-up at run time, the
+;;;; macro should create variables for each match, recording the 
+;;;; gensym-d names. I.e., this should be 
+;;;; something like
+;;;; (cl:if (member var vars-bound)
+;;;;    `(values (eql ,expression-sym ,(lookup-name-of var)) ,binding-sym)
+;;;;    (progn
+;;;;        (push (cons var (gensym)) vars-bound) ; add name for var
+;;;;        `(progn (setf ,(lookup-name-of var) ,expression-sym)
+;;;;            (push ,binding-sym (cons ,var ,expression-sym))
+;;;;            (values t ,binding-sym))
+
     ((atom pattern)
      ;; atoms match themselves, or fail; this also would cover NIL
-     (values
-      (lambda (expr bindings)
-	;;(format t "matching atom ~A to expr ~A with bindings ~A~%"
-	;;	  pattern expr bindings)
-	(values (eql pattern expr) bindings))
-      nil))
+     `(values (eql ,expression-sym ,pattern) ,binding-sym))
     
     ((eq (car pattern) 'quote) 
      ;; quoted elements in the pattern must be EQ to the expression
-     (values
-      (lambda (expr bindings)
-	(values (eq (cadr pattern) expr) bindings))
-      nil))
-    
+     `(values (eq (cadr ,expression-sym) ,(cadr pattern)) ,binding-sym))
+     
     ((match-predicate pattern)
      (let ((predicate (cadr pattern))
 	   (var (caddr pattern)))
        (cl:if (endp (cddr pattern)) ; no binding
-	      (values
-	       (lambda (expr bindings)
-		 (values (funcall predicate expr) bindings))
-	       nil)
+	      `(values (funcall ,predicate ,expression-sym) ,binding-sym)
 	      (cl:if (member var vars-bound)
-		     (values 
-		      ;; strange case: predicate check against already-bound
-		      ;; value...perhaps should error here.
-		      (lambda (expr bindings)
-			;;(format t "Checking match of var ~A to expression ~A with bindings ~A~%"
-			;;	  var expr bindings)
-			(values (and (funcall predicate expr)
-				     (eq expr (bound-value var bindings)))
-				bindings))
-		      nil)
-		     (values
-		      (lambda (expr bindings)
-			;;(format t "Matching var ~A to expression ~A with previous bindings ~A~%"
-			;;        var expr bindings)
-			(values (funcall predicate expr) 
-				(cons (cons var expr) bindings)))
-		      (list var))))))
+		     `(values 
+		       ;; strange case: predicate check against already-bound
+		       ;; value...perhaps should error here.
+		       ;; see NOTE above regarding bound-value lookup
+		       (and (funcall ,predicate ,expression-sym)
+			    (eq ,expression-sym (bound-value ,var 
+							     ,binding-sym)))
+		       ,binding-sym)
+		     ;; otherwise, check predicate and create new binding
+		     (progn
+		       (push var vars-bound)
+		       `(progn
+			  ;; premature to push binding before checking
+			  ;; the predicate, but matches what I did in 
+			  ;; pattern-lambda version, and might be handy
+			  ;; in diagnosing match failures...
+			  (push (cons ,var ,expression-sym)
+				,binding-sym) 
+			  (values (funcall ,predicate ,expression-sym)
+				  ,binding-sym)))))))
     
     ;;; pattern is a CONS: match recursively
     (t 
+     (let ((car-result-sym (gensym))
+	   (car-sym (gensym)))
+       `(if (consp ,expression-sym)
+	    (let ((,car-sym (car ,expression-sym)))
+	      (multiple-value-bind (,car-result-sym ,binding-sym)
+		  (match-expression ,car-sym vars-bound)
+	      
+	      (if (null (cdr pattern)) ; last element of list?
      (multiple-value-bind (car-func car-bindings)
 	 (create-match-function (car pattern) vars-bound)
        (multiple-value-bind (cdr-func cdr-bindings)
