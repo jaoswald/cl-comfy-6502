@@ -1036,7 +1036,7 @@ it with a conditional backward branch.
 ;;   `(seq (l ,?x) (st ,?y))))
 
   ((move ?x ?y) 
-   (format t "match 1: ?x ~S ?y ~S" ?x ?y)
+;;   (format t "match 1: ?x ~S ?y ~S" ?x ?y)
    `(seq ,(append (list 'l) ?x)
      ,(append (list 'st) ?y))))
 
