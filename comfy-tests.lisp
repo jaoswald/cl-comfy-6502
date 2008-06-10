@@ -8,6 +8,7 @@
   (:use "COMMON-LISP" "6502" "COMFY-6502" #+sbcl "SB-RT" #-sbcl "RT")
   (:shadowing-import-from "COMFY-6502" 
 			  "COMPILE" "1+" "1-" "+" "-" "IF" "NOT" "LOOP"
+			  "FOR"
 			  "BREAK"))
 
 (in-package "COMFY-6502-TESTS")
@@ -277,6 +278,42 @@
    (STA :ZERO-PAGE-X) (:ZERO-PAGE 11) ; [6] (st i *code*)
    (INX)                     ; [4]
    (JMP :ABSOLUTE) (:LONG-BRANCH -12))) ; [3]
+
+(deftest forj-1 (progn 
+		  (defparameter *code* 11)
+		  (compile-code (forj (\# 6) (\# 12) 
+				      (l j (lisp *code*))
+				      (lxor \# 127)
+				      (st j (lisp *code*))) -10 -20))
+  ((LDY :IMMEDIATE) (:BYTE 6)           ; [18]
+   (CPY :IMMEDIATE) (:BYTE 12)          ; [16] 
+   (BCS) (:BRANCH 23)                   ; [14] BCS -10 --> win
+   (LDA :ABSOLUTE-Y) (:ABSOLUTE 11)     ; [12] (l j *code*)
+   (EOR :IMMEDIATE)  (:BYTE 127)        ; [9]  (lxor \# 127)
+   (STA :ABSOLUTE-Y) (:ABSOLUTE 11)     ; [7]  (st j *code*)
+   (INY)                                ; [4]
+   (JMP :ABSOLUTE) (:LONG-BRANCH -14))) ; [3]  -> to CPY
+
+(deftest for-1 (code-result
+		 (equ code 13)  ; buffer 13..25
+		 (equ ptr 26)
+		 (comfy-6502:compile  
+		  '(for (ptr) (\# 6) (\# 12) 
+		      (li ptr)
+		      (l i code)
+		      (lxor \# 127)
+		      (st i code)) -10 -20))
+  ((LDA :IMMEDIATE) (:BYTE 6)           ; [23]
+   (STA :ZERO-PAGE) (:ZERO-PAGE 26)     ; [21]
+   (CMP :IMMEDIATE) (:BYTE 12)          ; [19] 
+   (BCS) (:BRANCH 26)                   ; [17] BCS -10 --> win
+   (LDX :ZERO-PAGE) (:ZERO-PAGE 26)     ; [15]
+   (LDA :ZERO-PAGE-X) (:ZERO-PAGE 13)   ; [13] (l j *code*)
+   (EOR :IMMEDIATE)  (:BYTE 127)        ; [11] (lxor \# 127)
+   (STA :ZERO-PAGE-X) (:ZERO-PAGE 13)   ; [9]  (st j *code*)
+   (INC :ZERO-PAGE) (:ZERO-PAGE 26)     ; [7]
+   (LDA :ZERO-PAGE) (:ZERO-PAGE 26)     ; [5]
+   (JMP :ABSOLUTE) (:LONG-BRANCH -17))) ; [3]   -> to CMP
 
 (deftest upc-example 
     (code-result

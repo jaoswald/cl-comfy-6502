@@ -35,6 +35,7 @@
   (:use "6502" "CL")
   (:shadow "COMPILE" "CONSTANTP" "VARIABLEP" "BREAK"
 	   "IF" "+" "-" "1+" "1-" "NOT" "LOOP" ;; "PROG"
+	   "FOR"
 	   ;; "WHEN" "UNLESS" ; candidates for control macros
 	   )
   (:export "COMPILE" "INIT" "*MEM*" "RELOCATE"
@@ -1136,7 +1137,7 @@ Second, a boolean indicating whether the match was successful."
 ;;   `(seq (l ,?x) (st ,?y))))
 
   ((move ?x ?y) 
-   (format t "match 1: ?x ~S ?y ~S" ?x ?y)
+;;   (format t "match 1: ?x ~S ?y ~S" ?x ?y)
    `(seq ,(append (list 'l) ?x)
      ,(append (list 'st) ?y))))
 
@@ -1167,7 +1168,7 @@ Second, a boolean indicating whether the match was successful."
 
 (define-cmacro for
   ((for ?v ?from ?to . ?body)
-   `(seq ,(append '(l) from) ,(append '(st) ?v)
+   `(seq ,(append '(l) ?from) ,(append '(st) ?v)
      (while (seq ,(append '(c) ?to) llt)
        (seq ,(append '(seq) ?body)
 	    ,(append '(1+) ?v)
