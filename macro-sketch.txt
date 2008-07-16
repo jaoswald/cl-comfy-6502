@@ -48,5 +48,63 @@ pattern: (?x ?x) (not bound outside)
           (m-v-b (cdr-match cdr-bi
 
 
+;;; These need to be cleaned up.
 
-         
+;;; What I need to do is take a step back and figure out what
+;;; is really required from the macro expansion.
+;;;
+;;; It is not simply the matching function, I need to work in a 
+;;; context, namely that of expanding comfy-macros.
+;;;
+;;; E.g.
+;;;
+;;; (define-cmacro rr-example
+;;;    ((rr-example) '(8 rl))
+;;;    ((rr-example ?place) `(seq push 
+;;;                               (l ,@?place) 
+;;;                               rr-example 
+;;;                               (st ,@?place) 
+;;;                               pop)))
+;;;
+
+(defun rr-expander (form)
+  "Returns two values, the first is T if a match was achieved,
+the second is then the expansion.
+   If no match was possible, the first value is NIL and the 
+second is the original form"
+  (multiple-value-bind (match-1 expansion-1)
+      (let ((car-var (car form))
+	    (cdr-var (cdr form)))
+	(if (eql car-var 'rr-example)
+	    (if (null cdr-var)
+		(values t '(8 rl))
+		(values nil form))
+	    (values nil form)))
+    (if match-1 (values match-1 expansion-1)
+	(multiple-value-bind (match-2 expansion-2)
+	    (let ((car-var (car form))
+		  (cdr-var (cdr form)))
+	      (if (eql car-var 'rr-example)
+		  (let ((?place (car cdr-var))
+			(cddr-var (cdr cdr-var)))
+		    (if (null cddr-var)
+			(values t `(seq push (l ,@?place) 
+					rr-example (st ,@?place) 
+					pop))
+			(values nil form)))
+		  (values nil form)))
+	  (if match-2 
+	      (values match-2 expansion-2)
+	      (values nil form))))))
+
+(rr-expander '(rr-example)) 
+
+;; --> T, (8 rl)
+
+(rr-expander '(rr-example (loc)))
+
+;; --> T, (seq push (l loc) rr-example (st loc) pop)xs
+
+(rr-expander '(rr-mismatch))
+
+;;  --> NIL, (RR-MISMATCH)
