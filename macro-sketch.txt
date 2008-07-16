@@ -103,8 +103,18 @@ second is the original form"
 
 (rr-expander '(rr-example (loc)))
 
-;; --> T, (seq push (l loc) rr-example (st loc) pop)xs
+;; --> T, (seq push (l loc) rr-example (st loc) pop)
 
 (rr-expander '(rr-mismatch))
 
 ;;  --> NIL, (RR-MISMATCH)
+
+;;; Hmmm. Some slight glitches here.
+;;; 1. The RR is (7 RL) not 8
+;;; 2. It would be nice for 
+;;;    (RR <address-mode> X) to expand directly to (7 (RL <address-mode> X))
+;;;    if <address-mode> is supported by RL, and
+;;;    to the push/load/RL/store/pop if not.
+;;; there should be a way to do it using (:IN #'ROL-MODE ?AM)
+;;; (:IN (lambda (am) (member am ....)) ?AM)
+;;; ... how does this LAMBDA get compiled?
