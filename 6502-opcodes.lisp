@@ -174,7 +174,7 @@
     (unless am
       (error 'bad-address-mode :mnemonic op :address-mode am))
     (let ((skel (get op 'opcode)))
-      (unless skel (error "Missing 6502:OPCODE property on %s" op))
+      (unless skel (error "Missing 6502:OPCODE property on ~A" op))
       (cond 
 	((eq am :IMMEDIATE)
 	 (when (eq op 'STA)
@@ -213,7 +213,7 @@
     (unless am
       (error 'bad-address-mode :mnemonic op :address-mode am))
     (let ((skel (get op 'opcode)))
-      (unless skel (error "Missing OPCODE property on %s" op))
+      (unless skel (error "Missing OPCODE property on ~A" op))
       (cond 
 	((eq am :ABSOLUTE)      skel)
 	((eq am :ACCUMULATOR)   (- skel 4))
@@ -244,7 +244,7 @@
     (unless am
       (error 'bad-address-mode :mnemonic op :address-mode am))
     (let ((skel (get op 'opcode)))
-      (unless skel (error "Missing OPCODE property on %s" op))
+      (unless skel (error "Missing OPCODE property on ~A" op))
       (cond 
 	((eq am :ABSOLUTE)      skel)
 	((eq am :ABSOLUTE-X)    (+ skel 16))
@@ -264,7 +264,7 @@
     (unless am
       (error 'bad-address-mode :mnemonic op :address-mode am))
     (let ((skel (get op 'opcode)))
-      (unless skel (error "Missing OPCODE property on %s" op))
+      (unless skel (error "Missing OPCODE property on ~A" op))
       (cond 
 	((eq am :ABSOLUTE)      skel)
 	((eq am :ZERO-PAGE)     (- skel 8))
@@ -283,7 +283,7 @@
     (unless am
       (error 'bad-address-mode :mnemonic op :address-mode am))
     (let ((skel (get op 'opcode)))
-      (unless skel (error "Missing OPCODE property on %s" op))
+      (unless skel (error "Missing OPCODE property on ~A" op))
       (cond 
 	((eq am :ABSOLUTE)          skel)
 	((eq am :ABSOLUTE-INDIRECT) (+ skel 32))
@@ -301,7 +301,7 @@
     (unless am
       (error 'bad-address-mode :mnemonic op :address-mode am))
     (let ((skel (get op 'opcode)))
-      (unless skel (error "Missing OPCODE property on %s" op))
+      (unless skel (error "Missing OPCODE property on ~A" op))
       (cond 
 	((eq am :ABSOLUTE)          skel)
 	(t (error 'bad-address-mode :mnemonic op :address-mode am))))))
@@ -322,7 +322,7 @@
     (unless am
       (error 'bad-address-mode :mnemonic op :address-mode am))
     (let ((skel (get op 'opcode)))
-      (unless skel (error "Missing OPCODE property on %s" op))
+      (unless skel (error "Missing OPCODE property on ~A" op))
       (cond 
 	((eq am :ABSOLUTE)  skel)
 	((eq am :IMMEDIATE) (- skel 12))
@@ -342,7 +342,7 @@
     (unless am
       (error 'bad-address-mode :mnemonic op :address-mode am))
     (let ((skel (get op 'opcode)))
-      (unless skel (error "Missing OPCODE property on %s" op))
+      (unless skel (error "Missing OPCODE property on ~A" op))
       (cond 
 	((eq am :ABSOLUTE)  skel)
 	((eq am :ZERO-PAGE) (- skel 8))
@@ -364,7 +364,7 @@
     (unless am
       (error 'bad-address-mode :mnemonic op :address-mode am))
     (let ((skel (get op 'opcode)))
-      (unless skel (error "Missing OPCODE property on %s" op))
+      (unless skel (error "Missing OPCODE property on ~A" op))
       (cond 
 	((eq am :ABSOLUTE)   skel)
 	((eq am :IMMEDIATE)  (- skel 12))
